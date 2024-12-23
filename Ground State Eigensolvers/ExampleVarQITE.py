@@ -23,5 +23,5 @@ def VarQITE(H, total_time=5.0):
 
 H = SparsePauliOp.from_list([("II", -1.5), ("IZ", 0.5), ("ZI", -0.5), ("XX", 1.5),])
 
-energy = QITE(H)
+energy = VarQITE(H)
 print("Energy: "+str(energy))
