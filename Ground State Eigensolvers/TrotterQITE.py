@@ -120,22 +120,22 @@ def apply_pauli(qc, pauli, theta):
 #'''
 #"""
 
-def get_S(qc, pauli1, pauli2):
+def get_M(qc, pauli1, pauli2):
     estimator = Estimator(options={"shots": 2**15})
     
     # Multiply sigma_i by H to get the observable
-    sigma_i_dag = SparsePauliOp.from_list([(pauli1, 1.0)])#.adjoint()
+    sigma_i = SparsePauliOp.from_list([(pauli1, 1.0)])
     sigma_j = SparsePauliOp.from_list([(pauli2, 1.0)])
-    observable = (sigma_i_dag&sigma_j).simplify()
+    observable = (sigma_i&sigma_j).simplify()
     
-    # Estimator doesn't like imaginary coefficients
+    # Estimator doesn't like complex coefficients
     observable = SparsePauliOp.from_list([(str(observable.paulis[0]), observable.coeffs[0].real)])
     result = estimator.run(qc, observable).result()
     
     return 2*result.values[0].real
 
-def Measure_S(qc):
-    S = np.zeros((4**qc.num_qubits, 4**qc.num_qubits))
+def Measure_M(qc):
+    M = np.zeros((4**qc.num_qubits, 4**qc.num_qubits))
 
     for i in range(4**qc.num_qubits):
         pauli1 = ""
@@ -161,20 +161,20 @@ def Measure_S(qc):
                 elif(math.floor(j/4**k)%4 == 3):
                     pauli2 += "Z"
 
-            # Construct Circuit to measure S[i,j] = <psi|pauli1_dag*pauli2|psi>
-            S[i,j] = get_S(qc,pauli1, pauli2)
+            # Construct Circuit to measure M[i,j] = <psi|pauli1*pauli2|psi>
+            M[i,j] = get_M(qc,pauli1, pauli2)
 
-    return S
+    return M
 
 def get_B(qc, pauli1, H):
     estimator = Estimator(options={"shots": 2**19})
     total = 0.0
     
     # Multiply sigma_i by H to get the observable
-    sigma_i = SparsePauliOp.from_list([(pauli1, 1.0)]).adjoint()
+    sigma_i = SparsePauliOp.from_list([(pauli1, 1.0)])
     observables = (sigma_i&H).simplify()
 
-    # Estimator doesn't like imaginary coefficients
+    # Estimator doesn't like complex coefficients
     for i in range(len(observables.paulis)):
         coefficient = observables.coeffs[i]
         pauli = SparsePauliOp.from_list([(str(observables.paulis[i]), 1.0)])
@@ -182,11 +182,8 @@ def get_B(qc, pauli1, H):
         total += result.values[0]*coefficient
 
 
-    # B = Im(<psi|[H,sigma]|psi>), need to complete the commutator
-    # Multiply sigma_i by H to get the observable
+    # B = Im(<psi|[H,sigma]|psi>), need to complete the commutator (did the first term in code above)
     observables = (H&sigma_i).simplify()
-
-    # Estimator doesn't like imaginary coefficients
     for i in range(len(observables.paulis)):
         coefficient = observables.coeffs[i]
         pauli = SparsePauliOp.from_list([(str(observables.paulis[i]), 1.0)])
@@ -209,7 +206,7 @@ def Measure_B(qc, H):
             elif(math.floor(i/4**j)%4 == 3):
                 pauli1 += "Z"
         
-        # Construct Circuit to measure B[i] = <psi|pauli_dag*H|psi>
+        # Construct Circuit to measure B[i] = <psi|[H,pauli1]|psi>
         B[i] = get_B(qc, pauli1, H)
 
     return B
@@ -221,32 +218,25 @@ def TrotterQITE(H, final_time=1.0, dt=0.1, tolerance=1e-2):
     qc.h(0)
     qc.h(1)
     
-
     current_time = 0.0
     energies = []
     while(current_time < final_time):
         print("t="+str(current_time))
-        S = np.array(Measure_S(qc))
+        M = np.array(Measure_M(qc))
         B = np.array(Measure_B(qc, H))
 
         # Approximately invert A using Truncated SVD
-        u,s,v=np.linalg.svd(S)
+        u,s,v=np.linalg.svd(M)
         for j in range(len(s)): # Make matrix invertible (but still throw out bad value)
             if(s[j] == 0):
                 s[j] = 0.00000001
         t = np.diag(s**-1)
-        #print("t")
-        #print([t[j][j] for j in range(len(t))])
-        redundancy = 0
         for j in range(len(t)):
             if(t[j][j] > 10):
                 t[j][j] = 0
-                redundancy += 1
-        A_inv=np.dot(v.transpose(),np.dot(t,u.transpose()))
+        M_inv=np.dot(v.transpose(),np.dot(t,u.transpose()))
         
-        a = np.matmul(A_inv, -B)
-
-        #input(a)
+        a = np.matmul(M_inv, -B)
         
         for i in range(4**qc.num_qubits):
             pauli1 = ""
@@ -266,8 +256,6 @@ def TrotterQITE(H, final_time=1.0, dt=0.1, tolerance=1e-2):
         energies.append(get_energy(qc, H))
 
         current_time += dt
-    
-    print(qc)
     
     plt.plot(energies)
     plt.title("TrotterQITE")
