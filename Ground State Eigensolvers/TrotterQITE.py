@@ -1,7 +1,7 @@
 import numpy as np
 import qiskit
 from qiskit.quantum_info import SparsePauliOp
-from qiskit.primitives import Estimator, StatevectorEstimator
+from qiskit.primitives import Estimator
 from qiskit import QuantumCircuit
 import math
 import matplotlib.pyplot as plt
