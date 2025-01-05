@@ -1,14 +1,13 @@
 import numpy as np
 import qiskit
 from qiskit.quantum_info import SparsePauliOp
-from qiskit.primitives import Estimator
+from qiskit.primitives import Estimator, Sampler
 from qiskit import QuantumCircuit
 
 import math
 import matplotlib.pyplot as plt
 
-#H = SparsePauliOp.from_list([ ("II", -1.5), ("IZ", 0.5), ("ZI", -0.5), ("XX", 1.5),])
-H = SparsePauliOp.from_list([("Z", 0.5)])
+H = SparsePauliOp.from_list([ ("II", -1.5), ("IZ", 0.5), ("ZI", -0.5), ("XX", 1.5),])
 
 
 def get_energy(qc, H):
@@ -16,9 +15,24 @@ def get_energy(qc, H):
     result = estimator.run(qc, H).result()
     return result.values[0]
 
-""" # As described in the paper
-def initialize_ancilla(qc):
-    return qc
+def initialize_ancilla(qc, H):
+    # Only work for 4 pauli terms or less
+    # Would require generalizing the ansatz preparation from "Efficient Scheme for Initializing a Quantum Register with an Arbitrary Superposed State"(Long et. al. 2001) to more qubits
+    a00 = float(H.coeffs[0])
+    a01 = float(H.coeffs[1])
+    a10 = float(H.coeffs[2])
+    a11 = float(H.coeffs[3])
+    
+    qc.ry(np.arctan(np.sqrt((a10**2 + a11**2)/(a00**2 + a01**2))), 0)
+    qc.z(0)
+
+    qc.cry(np.arctan(a00/a01), 0, 1)
+    qc.cz(0, 1)
+
+    qc.x(0)
+    qc.cry(np.arctan(a10/a11), 0, 1)
+    qc.cz(0, 1)
+    qc.x(0)
 
 def measure_paulis(qc, H):
     for i in range(len(H.paulis)):
@@ -64,103 +78,96 @@ def final_hadamard(qc, num_ancilla=1):
         qc.h(i)
 
 def ensure_zeros(qc):
-    return qc
+    global measurement_bit
+    qc.measure([0,1], [measurement_bit, measurement_bit + 1])
+    measurement_bit += 2
 
-def FQE(H, rounds=1):
-    # Normalize coefficients of Hamiltonian
-    C = np.sqrt(np.sum(np.abs(H.coeffs)**2))
-    H.coeffs = H.coeffs/C
+def measure_pauli_energy(qc, H, pauli_index):
+    # Create a gate for the specific pauli string to measure energy (from Hamiltonian)
+    pauli = str(H.paulis[pauli_index])
+    coeff = H.coeffs[pauli_index]
+    pauli_qc = QuantumCircuit(len(pauli))
+    for j in range(len(pauli)):
+        if(pauli[j] == "X"):
+            pauli_qc.x(j)
+        if(pauli[j] == "Y"):
+            pauli_qc.y(j)
+        if(pauli[j] == "Z"):
+            pauli_qc.z(j)
+    pauli_qc = pauli_qc.control(1)
+    qc.reset(0)
+    qc.h(0)
+    qc.compose(pauli_qc, [0, 2, 3], inplace=True)
+    qc.h(0)
+    qc.measure(0, 0)
+
+    # Use AerSimulator to measure Hamiltonian Pauli String, since Sampler and Estimator primitives do not like mid-circuit measurements
+    from qiskit_aer import AerSimulator
+    from qiskit import transpile 
+
+    backend = AerSimulator()
+    qc_compiled = transpile(qc, backend)
+    job_sim = backend.run(qc_compiled, shots=2**18)
     
-    qc = QuantumCircuit(H.num_qubits + math.ceil(np.log2(len(H.paulis))))
-    for i in range(rounds):
+    result_sim = job_sim.result()
+    counts = result_sim.get_counts(qc_compiled)
+    
+    if("0"*(2*rounds)+"0" in counts.keys()):
+        if("0"*(2*rounds)+"1" in counts.keys()):
+            return coeff*(counts["0"*(2*rounds)+"0"] - counts["0"*(2*rounds)+"1"])/(counts["0"*(2*rounds)+"0"] + counts["0"*(2*rounds)+"1"])
+        else:
+            return -coeff
+    else:
+        if("0"*(2*rounds)+"1" in counts.keys()):
+            return coeff
+        else:
+            return 0.0
 
-        # Need to first initialize the ancilla to encode the coefficients of the Hamiltonian
-        initialize_ancilla(qc)
-        
-        # Next we need to perform controlled measurements from the ancilla to the quantum state
-        measure_paulis(qc, H)
-
-        # Lastly we need to perform final hadamard gates and ensure that the measurement is zero 
-        # (reuse ancilla? - measure to different classical bits and reset ancilla qubits)
-        final_hadamard(qc, num_ancilla=math.ceil(np.log2(len(H.paulis))))
-        ensure_zeros(qc)
-        #input(qc)
-
-    # Run the created circuit and record results
-    # (use a sampler to condition the results on measuring all zeros from the ancilla?)
-
-    return True
-
-""" # With single ancilla and resets
-def measure_paulis(qc, H):
-    global current_classical_bit
-    for i in range(len(H.paulis)):
-        # Get current pauli string of the Hamiltonian
-        pauli = str(H.paulis[i])
-        
-        # Reset the ancilla qubit
-        qc.reset(0)
-
-        # Create a gate for the specific pauli string (from Hamiltonian)
-        pauli_qc = QuantumCircuit(len(pauli))
-        for j in range(len(pauli)):
-            if(pauli[j] == "X"):
-                pauli_qc.x(j)
-            if(pauli[j] == "Y"):
-                pauli_qc.y(j)
-            if(pauli[j] == "Z"):
-                pauli_qc.z(j)
-        
-        # Add this controlled operation into the circuit
-        pauli_qc = pauli_qc.control(1)
-        qc.ry(float(H.coeffs[i]), 0)
-        qc.compose(pauli_qc, [i for i in range(qc.num_qubits)], inplace=True)
-        
-        #qc.h(0)
-        qc.ry(-float(H.coeffs[i]), 0)
-        
-        #qc.measure(0, current_classical_bit)
-        current_classical_bit += 1
-        #input(qc.decompose())
-        
-
-def final_hadamard(qc, num_ancilla=1):
-    for i in range(num_ancilla):
-        qc.h(i)
-
-def ensure_zeros(qc):
-    return qc
 
 def FQE(H, rounds=1):
-    # Construct the quantum gradient descent operator
-    gamma = 0.01
+    # Get the gradient descent Hamiltonian
     I = SparsePauliOp.from_list([("I"*H.num_qubits, 1.0)])
-    Hg = I - gamma*H
+    gamma = 1.0
+    Hg = (I - gamma*H).simplify()
 
     # Normalize coefficients of Hamiltonian
     C = np.sqrt(np.sum(np.abs(Hg.coeffs)**2))
     Hg.coeffs = Hg.coeffs/C
 
-    global current_classical_bit
-    current_classical_bit = 0
-    
-    qc = QuantumCircuit(Hg.num_qubits + 1, rounds*len(Hg.coeffs))
-    qc.rx(np.pi*3/4, 1)
-    for i in range(rounds):
+    total = 0.0
+    for pauli_index in range(len(H.coeffs)):
+        global measurement_bit 
+        measurement_bit = 1
 
-        # Next we need to perform controlled measurements from the ancilla to the quantum state
-        measure_paulis(qc, Hg)
+        if(str(H.paulis[pauli_index]) == "I"*H.num_qubits):
+            total += H.coeffs[pauli_index]
+            continue
 
-    # Run the created circuit and record results
-    # (use a sampler to condition the results on measuring all zeros from the ancilla?)
-    Single_Identity = SparsePauliOp.from_list([("I", 1.0)])
-    expanded_H = Single_Identity.expand(H)
-    #input(qc)
-    energy = get_energy(qc, expanded_H)
+        # Prepare an initial trail wavefunction
+        qc = QuantumCircuit(Hg.num_qubits + math.ceil(np.log2(len(Hg.paulis))), 2*rounds + 1)
 
-    return energy
-#"""
+        for i in range(rounds):
 
-energy = FQE(H)
+            # Need to first initialize the ancilla to encode the coefficients of the Hamiltonian
+            initialize_ancilla(qc, Hg)
+            
+            # Next we need to perform controlled measurements from the ancilla to the quantum state
+            measure_paulis(qc, Hg)
 
-input("FQE Energy: "+str(energy))
+            # Lastly we need to perform final hadamard gates and ensure that the measurement is zero 
+            final_hadamard(qc, num_ancilla=math.ceil(np.log2(len(Hg.paulis))))
+            ensure_zeros(qc)
+
+        total += measure_pauli_energy(qc, H, pauli_index)
+        
+    return total
+
+all_energies = []
+for rounds in range(5):
+    energy = FQE(H, rounds=rounds)
+    all_energies.append(energy)
+
+    print("FQE Energy: "+str(energy))
+
+plt.plot(all_energies)
+plt.show()
