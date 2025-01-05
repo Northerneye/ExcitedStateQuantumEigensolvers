@@ -1,7 +1,6 @@
 import numpy as np
 import qiskit
 from qiskit.quantum_info import SparsePauliOp
-from qiskit.primitives import Estimator, Sampler
 from qiskit import QuantumCircuit
 
 import math
@@ -9,11 +8,6 @@ import matplotlib.pyplot as plt
 
 H = SparsePauliOp.from_list([ ("II", -1.5), ("IZ", 0.5), ("ZI", -0.5), ("XX", 1.5),])
 
-
-def get_energy(qc, H):
-    estimator = Estimator(options={"shots": 2**15})
-    result = estimator.run(qc, H).result()
-    return result.values[0]
 
 def initialize_ancilla(qc, H):
     # Only work for 4 pauli terms or less
