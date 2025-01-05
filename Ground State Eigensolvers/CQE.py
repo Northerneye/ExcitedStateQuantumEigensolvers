@@ -12,8 +12,9 @@ import matplotlib.pyplot as plt
 
 # The Hamiltonian of interest
 #H = SparsePauliOp.from_list([("ZI", 1.0)])
-H = SparsePauliOp.from_list([ ("II", -1.5), ("IZ", 0.5), ("ZI", -0.5), ("XX", 1.5),])
+#H = SparsePauliOp.from_list([ ("II", -1.5), ("IZ", 0.5), ("ZI", -0.5), ("XX", 1.5),])
 #H = SparsePauliOp.from_list([("Z", 1.0)])
+H = SparsePauliOp.from_list([("X", 0.5), ("Y", -0.5), ("Z", 0.5)])
 
 #mapper = JordanWignerMapper()
 #fermionic_op = FermionicOp({"+_0 +_1": 1.0}, num_spin_orbitals=2)
@@ -162,6 +163,7 @@ def Measure_A(qc, H):
                 for l in range(H.num_qubits):
                     # Get the corresponding pauli operator to this fermionic operator
                     fermionic_op = FermionicOp({"+_"+str(i)+" +_"+str(j)+" -_"+str(k)+" -_"+str(l): 1.0}, num_spin_orbitals=H.num_qubits)
+                    input(fermionic_op)
                     qubit_jw_op = mapper.map(fermionic_op)
 
                     # Construct Circuit to measure A[i,j,k,l] = <psi|[pauli1, H]|psi>
@@ -175,9 +177,9 @@ def Measure_A(qc, H):
 def CQE(H, steps=5, eps=0.1, tolerance=1e-2):
     # Initialize the Quantum State
     qc = QuantumCircuit(H.num_qubits)
-    qc.x(0)
-    qc.h(0)
-    qc.h(1)
+    #qc.x(0)
+    #qc.h(0)
+    #qc.h(1)
     
     current_time = 0.0
     energies = []
