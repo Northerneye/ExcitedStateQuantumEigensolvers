@@ -80,6 +80,10 @@ def measure_pauli_energy(qc, H, pauli_index):
     # Create a gate for the specific pauli string to measure energy (from Hamiltonian)
     pauli = str(H.paulis[pauli_index])
     coeff = H.coeffs[pauli_index]
+
+    if(pauli == "I"*len(pauli)):
+        return coeff
+
     pauli_qc = QuantumCircuit(len(pauli))
     for j in range(len(pauli)):
         if(pauli[j] == "X"):
@@ -118,10 +122,10 @@ def measure_pauli_energy(qc, H, pauli_index):
             return 0.0
 
 
-def FQE(H, rounds=1):
+def FQESS(H, rounds=1):
     # Get the gradient descent Hamiltonian
     I = SparsePauliOp.from_list([("I"*H.num_qubits, 1.0)])
-    gamma = 1.0
+    gamma = 0.15
     Hg = (I - gamma*H).simplify()
 
     # Normalize coefficients of Hamiltonian
@@ -134,13 +138,10 @@ def FQE(H, rounds=1):
         global measurement_bit 
         measurement_bit = 1
 
-        if(str(H.paulis[pauli_index]) == "I"*H.num_qubits):
-            total_ground += H.coeffs[pauli_index]
-            continue
-
         # Prepare an initial trail wavefunction
         qc = QuantumCircuit(Hg.num_qubits + math.ceil(np.log2(len(Hg.paulis))), 2*rounds + 1)
-
+        qc.x(3)
+        
         for i in range(rounds):
 
             # Need to first initialize the ancilla to encode the coefficients of the Hamiltonian
@@ -162,7 +163,7 @@ def FQE(H, rounds=1):
 
     # Now we can calculate the First Excited State
     H_repulsion = SparsePauliOp.from_list([(key, value) for key, value in repulsions.items()])
-    H_excited = H - H_repulsion
+    H_excited = H - total_ground*H_repulsion
     H_excited = H_excited.simplify()
 
     # Get the gradient descent Hamiltonian
@@ -177,12 +178,9 @@ def FQE(H, rounds=1):
     for pauli_index in range(len(H.coeffs)):
         measurement_bit = 1
 
-        if(str(H.paulis[pauli_index]) == "I"*H.num_qubits):
-            total_excited += H.coeffs[pauli_index]
-            continue
-
         # Prepare an initial trail wavefunction
         qc = QuantumCircuit(Hg.num_qubits + math.ceil(np.log2(len(Hg.paulis))), 2*rounds + 1)
+        qc.x(3)
 
         for i in range(rounds):
 
@@ -199,15 +197,14 @@ def FQE(H, rounds=1):
         pauli_contribution = measure_pauli_energy(qc, H, pauli_index)
         
         # Record pauli contribution to modify Hamiltonian, in order to find excited states
-        total_excited += pauli_contribution
-        
+        total_excited += pauli_contribution        
         
     return total_ground, total_excited
 
 all_ground_energies = []
 all_excited_energies = []
 for rounds in range(5):
-    ground_energy, excited_energy = FQE(H, rounds=rounds)
+    ground_energy, excited_energy = FQESS(H, rounds=rounds)
     all_ground_energies.append(ground_energy)
     all_excited_energies.append(excited_energy)
 

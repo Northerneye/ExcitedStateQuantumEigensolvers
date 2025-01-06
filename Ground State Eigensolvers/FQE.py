@@ -121,7 +121,7 @@ def measure_pauli_energy(qc, H, pauli_index):
 def FQE(H, rounds=1):
     # Get the gradient descent Hamiltonian
     I = SparsePauliOp.from_list([("I"*H.num_qubits, 1.0)])
-    gamma = 1.0
+    gamma = 0.15
     Hg = (I - gamma*H).simplify()
 
     # Normalize coefficients of Hamiltonian
@@ -139,7 +139,8 @@ def FQE(H, rounds=1):
 
         # Prepare an initial trail wavefunction
         qc = QuantumCircuit(Hg.num_qubits + math.ceil(np.log2(len(Hg.paulis))), 2*rounds + 1)
-
+        qc.x(3)
+        
         for i in range(rounds):
 
             # Need to first initialize the ancilla to encode the coefficients of the Hamiltonian
@@ -151,7 +152,7 @@ def FQE(H, rounds=1):
             # Lastly we need to perform final hadamard gates and ensure that the measurement is zero 
             final_hadamard(qc, num_ancilla=math.ceil(np.log2(len(Hg.paulis))))
             ensure_zeros(qc)
-
+            
         total += measure_pauli_energy(qc, H, pauli_index)
         
     return total
