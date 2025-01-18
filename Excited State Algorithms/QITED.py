@@ -147,7 +147,8 @@ def Measure_A(params, N=2, shots=2**10):
             qc = A_Circuit(params, i, i+j, N=N)
             result = estimator.run(qc, observable).result()
             A[i][i+j] = 1/4*result.values[0]
-            A[i+j][i] = 1/4*result.values[0]
+            if(j != 0):
+                A[i+j][i] = 1/4*result.values[0]
     return A
 
 def C_Circuit(params, i, pauli_string, N=2):
