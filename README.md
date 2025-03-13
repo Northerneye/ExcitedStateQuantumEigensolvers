@@ -1,6 +1,6 @@
 # A Review of Excited State Eigensolvers
 
-This repository accompanies the paper "A Review of Excited State Variational Eigensolvers" posted to ArXiv.  This repository contains both example scripts for simple implimentations of the excited state algorithms covered in the review, and scripts for benchmarking these algorithms on molecules such as $H_2$ or $LiH$.
+This repository accompanies the paper "A Review of Excited State Variational Eigensolvers".  This repository contains both example scripts for simple implimentations of the excited state algorithms covered in the review, and scripts for benchmarking these algorithms on molecules such as $H_2$ or $LiH$.
 
 Excited state eigensolvers consist of two building blocks: a ground state eigensolver, and an excited state modification.  The ground state eigensolver is able to find the lowest eigenvalue accessible by the provided ansatz, and the excited state modification changes the loss function to force the ground state eigensolver to discover excited states.  As an example, the Variational Quantum Deflation (VQD) algorithm uses the variational quantum eigensolver to discover the lowest energy eigenstate, and then modfies the loss function to effectively raise the energy of this lowest eigenvalue.  When the ground state eigensolver is applied a second time, it will now find the first excited state rather than the ground state.
 
