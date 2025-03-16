@@ -271,9 +271,8 @@ def SSQITE(H, energy_levels=2, max_iter=100, step_size=0.2, shots=2**19):
 
             print("Energy Level: "+str(energy_level))
             print("Theta Dot: "+str(np.sum(np.abs(pre_theta_dot))))
-            print()
-
             all_energies[energy_level].append(energy(H, my_params, shots=shots))
+        print()
         
         for j in range(len(theta_dot)):
             my_params[j] += theta_dot[j]*step_size
