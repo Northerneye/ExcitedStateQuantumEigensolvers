@@ -22,7 +22,7 @@ def apply_param(params, parameter, qc, N=2, start=0):
         qc.rx(params[parameter], start + parameter%N)
     else:
         qc.ry(params[parameter], start + parameter%N)
-    if(parameter == 2*N):
+    if((parameter+1)%(2*N) == 0 and len(params) > parameter+1):
         for i in range(N-1):
             qc.cx(start + i, start + i + 1)
     
@@ -254,7 +254,7 @@ def Deflation_Circuit(params, i, all_param, N=2):
     qc.h(2*N)
     return qc
 
-def QITED(H, alpha=None, energy_levels=2, max_iter=100, step_size=0.1, shots=2**15):
+def QITED(H, alpha=None, energy_levels=2, max_iter=100, step_size=0.2, shots=2**15):
     """
     Runs the QITED Algorithm.  The twolocal ansatz is hardcoded into the apply_param and measure_der functions.
     Functions run the A and C circuits to generate the A matrix and C vector.  The parameter step is found
@@ -266,7 +266,7 @@ def QITED(H, alpha=None, energy_levels=2, max_iter=100, step_size=0.1, shots=2**
         alpha (list, optional): The increase in energy applied to discovered states, in order to allow the ground state algorithm to identify excited states. Defaults to None.
         energy_levels (int, optional): The number of energy levels to be returned by QITED. Defaults to 2.
         max_iter (int, optional): The maximum number of timesteps the QITED algorithm will take before returning the current state. Defaults to 100.
-        step_size (float, optional): The size of each timestep the QITED algorithm takes. Defaults to 0.1.
+        step_size (float, optional): The size of each timestep the QITED algorithm takes. Defaults to 0.2.
         shots (int, optional): The number of shots used to estimate observables. Defaults to 2**10.
 
     Returns:
@@ -298,6 +298,7 @@ def QITED(H, alpha=None, energy_levels=2, max_iter=100, step_size=0.1, shots=2**
 
             print("Energy Level: "+str(energy_level))
             print("Theta Dot: "+str(np.sum(np.abs(theta_dot))))
+            print()
 
             for j in range(len(theta_dot)):
                 my_params[j] += theta_dot[j]*step_size
