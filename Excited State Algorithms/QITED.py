@@ -254,10 +254,10 @@ def Deflation_Circuit(params, i, all_param, N=2):
     qc.h(2*N)
     return qc
 
-def QITED(H, alpha=None, energy_levels=2, max_iter=100, step_size=0.1, shots=2**10):
+def QITED(H, alpha=None, energy_levels=2, max_iter=100, step_size=0.1, shots=2**15):
     """
     Runs the QITED Algorithm.  The twolocal ansatz is hardcoded into the apply_param and measure_der functions.
-    This function runs the A and C circuits to generate the A matrix and C vector.  The parameter step is found
+    Functions run the A and C circuits to generate the A matrix and C vector.  The parameter step is found
     by inverting A and multiplying it by C to generate theta_dot.  This is then used to evolve the state through
     imaginary time to uncover the ground state.
 
@@ -290,11 +290,14 @@ def QITED(H, alpha=None, energy_levels=2, max_iter=100, step_size=0.1, shots=2**
             #Approximately invert A using Truncated SVD
             u,s,v=np.linalg.svd(A)
             for j in range(len(s)): 
-                if(s[j] < 0.01):
+                if(s[j] < 0.02):
                     s[j] = 1e6
             t = np.diag(s**-1)
             A_inv=np.dot(v.transpose(),np.dot(t,u.transpose()))
             theta_dot = np.matmul(A_inv, C)
+
+            print("Energy Level: "+str(energy_level))
+            print("Theta Dot: "+str(np.sum(np.abs(theta_dot))))
 
             for j in range(len(theta_dot)):
                 my_params[j] += theta_dot[j]*step_size
